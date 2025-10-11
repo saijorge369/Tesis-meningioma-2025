@@ -1,0 +1,192 @@
+% =========================================================================
+% PROGRAMA: Creación de Cerebro Virtual y Generación de ROI
+% DESCRIPCIÓN: Carga imágenes NIfTI de distintas partes del cerebro (e.g., materia gris,
+% materia blanca, cráneo, vasos sanguíneos, músculos y piel), permite seleccionar un rango Z
+% y definir interactivamente un ROI, el cual se guarda en un archivo MAT.
+% ARCHIVOS REQUERIDOS: Imágenes NIfTI con nombres específicos (e.g., subject04_gm_v.nii, etc.).
+% ARCHIVO DE SALIDA: Se guarda un MAT con la variable 'roiData' que contiene los datos del ROI.
+% LECTURA DEL ROI: La función OM_Brats2025v0214 lee archivos MAT buscando 'roi_tumor', 'SROI',
+% 'T' (umbral T > 0.5) o 'roi_virtual' para reconstruir la máscara.
+% GUARDAR TODO EL CEREBRO: Para incluir toda la estructura cerebral, modifique los límites del ROI.
+% SUMAR ROI: Para sumar volúmenes o datos del ROI, cargue el MAT y procese 'roiData' (p.ej., usando nnz).
+% AUTOR: SAI JORGE ROBLERO WONG, FECHA: Febrero 2025.
+% =========================================================================
+
+% Ruta base de los archivos NIfTI (Brain_Sai_1210_2025)
+basePath = '/Users/jorgeroblero/Documents/SAI_BRAIN/';
+
+% Archivos de las diferentes partes del cerebro
+files = {
+    'subject04_gm_v.nii', 'MateriaGris';      % Materia gris
+    'subject04_wm_v.nii', 'MateriaBlanca';      % Materia blanca
+    'subject04_skull_v.nii', 'Craneo';           % Cráneo
+    'subject04_vessels.nii', 'VasosSanguineos';  % Vasos sanguíneos
+    'subject04_muscles_skin_v.nii', 'MusculosYPiel'  % Músculos y piel
+};
+
+% Configuración inicial: colores y transparencias
+colors = [1 0 0; 0 1 0; 0 0 1; 1 1 0; 0 1 1];   % Colores RGB
+transparencies = [0.5, 0.5, 0.3, 0.5, 0.5];       % Transparencias
+
+% Mostrar opciones de órganos
+disp('Órganos disponibles para cargar:');
+for i = 1:size(files, 1)
+    disp([num2str(i), '. ', files{i, 2}]);
+end
+
+% Seleccionar órganos a cargar
+selectedOrgans = input('Ingrese los números de los órganos que desea cargar separados por comas (ej: 1,2,4): ', 's');
+selectedOrgans = str2num(selectedOrgans);  %#ok<ST2NM>
+if isempty(selectedOrgans) || any(selectedOrgans < 1) || any(selectedOrgans > size(files, 1))
+    disp('Error: Selección inválida. Verifica los números ingresados.');
+    return;
+end
+
+files = files(selectedOrgans, :);
+colors = colors(selectedOrgans, :);
+transparencies = transparencies(selectedOrgans);
+
+% Cargar datos de los órganos seleccionados
+disp('Cargando datos de los órganos seleccionados...');
+brainParts = cell(size(files, 1),1);
+for i = 1:size(files, 1)
+    filePath = fullfile(basePath, files{i, 1});
+    disp(['Cargando: ', files{i, 2}]);
+    brainParts{i} = niftiread(filePath);
+end
+[numX, numY, numZ] = size(brainParts{1});  % Tamaño de la primera estructura
+
+% Mostrar slices con slider
+disp('Selecciona el rango Z usando el slider para navegar entre los slices.');
+figure('Name', 'Seleccionar Slice Axial');
+ax = axes('Position', [0.1 0.3 0.8 0.65]);
+slider = uicontrol('Style', 'slider', ...
+    'Min', 1, 'Max', numZ, 'Value', 1, ...
+    'Units', 'normalized', 'Position', [0.1 0.1 0.8 0.05], ...
+    'Callback', @(src, event) updateSlice(src, ax, brainParts{1}));
+updateSlice(slider, ax, brainParts{1});
+
+% Validar límites de Z
+zMin = input('Ingrese la lámina inferior (Z mínima, >=1): ');
+while zMin < 1 || zMin > numZ
+    disp(['Error: Z mínima debe estar entre 1 y ', num2str(numZ), '.']);
+    zMin = input('Ingrese la lámina inferior (Z mínima, >=1): ');
+end
+zMax = input(['Ingrese la lámina superior (Z máxima, > ', num2str(zMin), ' y <= ', num2str(numZ), '): ']);
+while zMax <= zMin || zMax > numZ
+    disp(['Error: Z máxima debe ser mayor que Z mínima (', num2str(zMin), ') y menor o igual a ', num2str(numZ), '.']);
+    zMax = input(['Ingrese la lámina superior (Z máxima, > ', num2str(zMin), ' y <= ', num2str(numZ), '): ']);
+end
+
+% Seleccionar área del ROI en slice intermedio
+midSlice = round((zMin + zMax) / 2);
+disp(['Mostrando slice intermedio Z = ', num2str(midSlice)]);
+figure('Name', 'Seleccionar Área del ROI');
+imagesc(squeeze(brainParts{1}(:, :, midSlice)));
+colormap(jet);
+axis equal tight;
+title('Dibuja un rectángulo para seleccionar el área del ROI');
+roiRect = getrect;  % Selección interactiva
+
+% Obtener límites del ROI en X e Y
+xMin = max(1, round(roiRect(1)));
+xMax = min(numX, round(roiRect(1) + roiRect(3)));
+yMin = max(1, round(roiRect(2)));
+yMax = min(numY, round(roiRect(2) + roiRect(4)));
+
+% Confirmar límites del ROI
+disp('Límites del ROI seleccionados:');
+disp(['X: ', num2str(xMin), ' a ', num2str(xMax)]);
+disp(['Y: ', num2str(yMin), ' a ', num2str(yMax)]);
+disp(['Z: ', num2str(zMin), ' a ', num2str(zMax)]);
+
+% Crear estructura roiData con los datos del ROI
+roiData = struct();
+roiData.xRange = [xMin, xMax];
+roiData.yRange = [yMin, yMax];
+roiData.zRange = [zMin, zMax];
+roiData.organs = struct();
+for i = 1:size(files, 1)
+    organName = files{i, 2};
+    partData = brainParts{i};
+    roiData.organs.(organName) = partData(xMin:xMax, yMin:yMax, zMin:zMax);
+end
+
+% Mostrar ROI en 3D para confirmación
+disp('Mostrando el ROI en 3D para confirmación...');
+figure('Name', 'ROI en 3D');
+hold on;
+for i = 1:size(files, 1)
+    organName = files{i, 2};
+    roiVolume = roiData.organs.(organName);
+    if any(roiVolume(:))
+        roiPatch = isosurface(roiVolume, 0.5);
+        p = patch(roiPatch);
+        p.FaceColor = colors(i, :);
+        p.EdgeColor = 'none';
+        p.FaceAlpha = transparencies(i);
+    end
+end
+view(3);
+axis equal tight;
+camlight;
+lighting gouraud;
+title('ROI Seleccionado en 3D');
+hold off;
+
+rotate3d on;
+disp('Puedes rotar el gráfico 3D con el mouse. Presiona Enter para continuar.');
+pause;
+
+% -------------------------------------------------------------------------
+% Preguntar si se desea guardar el ROI o el cerebro completo
+% -------------------------------------------------------------------------
+fullBrainOption = input('¿Deseas guardar el cerebro completo (full cerebro)? (s/n, default=n): ', 's');
+if ~isempty(fullBrainOption) && lower(fullBrainOption(1))=='s'
+    % Usar todo el volumen
+    xMin = 1; xMax = numX;
+    yMin = 1; yMax = numY;
+    zMin = 1; zMax = numZ;
+    newRoiData = struct();
+    newRoiData.xRange = [xMin, xMax];
+    newRoiData.yRange = [yMin, yMax];
+    newRoiData.zRange = [zMin, zMax];
+    newRoiData.organs = struct();
+    for i = 1:size(files, 1)
+        organName = files{i, 2};
+        newRoiData.organs.(organName) = brainParts{i};
+    end
+    roiData = newRoiData;
+    outputFileName = fullfile(basePath, 'FullBrain.mat');
+else
+    % Generar un nombre único para el archivo ROI
+    baseFileName = 'ROI_Data';
+    fileExtension = '.mat';
+    fileIndex = 1;
+    while true
+        roiFile = fullfile(basePath, [baseFileName, '_', sprintf('%03d', fileIndex), fileExtension]);
+        if ~isfile(roiFile)
+            break;
+        end
+        fileIndex = fileIndex + 1;
+    end
+    outputFileName = roiFile;
+end
+
+% Guardar el ROI (o cerebro completo) en el archivo generado
+disp(['Guardando ROI en: ', outputFileName]);
+save(outputFileName, 'roiData');
+disp(['ROI guardado exitosamente como: ', outputFileName]);
+
+% -------------------------------------------------------------------------
+% Función para actualizar el slice mostrado en el slider
+% -------------------------------------------------------------------------
+function updateSlice(slider, ax, data)
+    sliceIdx = round(slider.Value);
+    axes(ax);
+    imagesc(squeeze(data(:, :, sliceIdx)));
+    colormap(jet);
+    axis equal tight;
+    title(['Slice Z = ', num2str(sliceIdx)]);
+    colorbar;
+end
