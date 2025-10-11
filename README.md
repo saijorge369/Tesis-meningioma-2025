@@ -1,4 +1,5 @@
 # Tesis-meningioma-2025
+Om Sai Ram
 Creación  de un cerebro virtual y un ROI para  simular el crecimiento de un meningioma. Determinación de beta alométrico del modelo de potencia  y parámetros mecanicistas del tumor,  tendencia de grado de meningioma, uso de ecuaciones mecanicistas para meningioma.
 
 
@@ -46,5 +47,15 @@ Se incluyen ejemplos de entrada/salida y parámetros por defecto utilizados en l
 ## 🔗 Cita sugerida
 > https://orcid.org/0000-0002-8520-6379, J Roblero, J. (2025). *Modelos mecanicistas y alométricos para meningiomas: código MATLAB*.  
 > Repositorio público en GitHub: [https://github.com/TU_USUARIO/tesis-meningioma-modelos](https://github.com/TU_USUARIO/tesis-meningioma-modelos)
+
+## Datos de entrada
+Los volúmenes anatómicos (.nii, .mnc) empleados provienen de la base **BrainWeb**  
+(https://brainweb.bic.mni.mcgill.ca/brainweb/).  
+
+Para reproducir las simulaciones:
+1. Descargue los volúmenes de `subject04` con las máscaras de tejidos (`_gm_v`, `_wm_v`, `_csf_v`, `_skull_v`, etc.).
+2. Colóquelos en una carpeta llamada `input_volumes/` en el mismo directorio que los scripts MATLAB.
+3. Ejecute el script `BRAIN_1210_2025FULL.m` para generar el cerebro virtual y el ROI.
+
 
 
