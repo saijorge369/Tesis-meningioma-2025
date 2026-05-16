@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Menin2026 · Cerebro 3D + ROI + simulación</title>
+  <style>
+    :root{
+      --bg:#0b1020;
+      --panel:#0f1630;
+      --panel2:#0b1228;
+      --text:#dfe7ff;
+      --accent:#4ade80;
+      --accent2:#60a5fa;
+      --danger:#fb7185;
+      --muted:#8aa2d6;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:radial-gradient(1200px 800px at 20% 20%, #1f2b54, var(--bg));color:var(--text);font-family:system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;overflow:hidden}
+    #app{display:grid;grid-template-rows:auto 1fr;height:100vh}
+    header{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));border-bottom:1px solid rgba(255,255,255,0.08)}
+    header h1{margin:0;font-size:14px;font-weight:700;letter-spacing:0.5px}
+    header .sub{font-size:12px;color:var(--muted);font-weight:600}
+    header .right{display:flex;gap:10px;align-items:center}
+    .badge{border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.03);color:var(--accent2)}
+    main{display:grid;grid-template-columns:minmax(280px, 360px) 1fr;gap:0;height:calc(100vh - 54px)}
+    #sidebar{padding:12px 14px;background:linear-gradient(180deg, var(--panel), var(--panel2));border-right:1px solid rgba(255,255,255,0.1);overflow-y:auto}
+    #viewport{position:relative;background:radial-gradient(1400px 900px at 70% 10%, rgba(96,165,250,0.22), rgba(11,16,32,1));}
+    #renderer{position:absolute;inset:0}
+    .section{margin-bottom:12px}
+    .section h2{margin:0 0 8px 0;font-size:12px;letter-spacing:0.8px;text-transform:uppercase;color:var(--muted)}
+    .row{display:flex;align-items:center;justify-content:space-between;margin:6px 0}
+    label{font-size:13px;color:var(--text);font-weight:600}
+    input[type=range]{width:140px}
+    .small{font-size:12px;color:var(--muted)}
+    button{border:0;border-radius:10px;padding:10px 12px;font-weight:700;font-size:13px;color:var(--text);background:rgba(255,255,255,0.06);cursor:pointer;transition:transform .12s ease, background .12s ease, box-shadow .12s ease}
+    button:hover{transform:translateY(-1px);background:rgba(255,255,255,0.08);box-shadow:0 10px 25px rgba(0,0,0,0.2)}
+    button:active{transform:translateY(0)}
+    .btn-primary{background:linear-gradient(180deg, rgba(96,165,250,0.95), rgba(59,130,246,0.85));}
+    .btn-primary:hover{background:linear-gradient(180deg, rgba(96,165,250,1), rgba(59,130,246,0.95))}
+    .btn-danger{background:linear-gradient(180deg, rgba(251,113,133,0.95), rgba(244,63,94,0.85));}
+    .pill{border-radius:999px;padding:8px 10px;font-size:12px;font-weight:700;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.03);margin-top:4px}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace}
+    .divider{height:1px;background:rgba(255,255,255,0.10);margin:10px 0}
+    .log{font-size:12px;color:var(--muted);line-height:1.5;user-select:text;word-break:break-word}
+    @media (max-width: 860px){main{grid-template-columns:1fr;height:auto}#sidebar{height:420px}#viewport{height:calc(100vh - 54px - 420px)}input[type=range]{width:170px}}
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div>
+        <h1>Menin2026 — Visor cerebro 3D + ROI</h1>
+        <div class="sub">Rotar 360° • navegar interior • ROI de meningioma • simulación inicial</div>
+      </div>
+      <div class="right">
+        <div class="badge">MODELO DEMO</div>
+      </div>
+    </header>
+    <main>
+      <aside id="sidebar">
+        <div class="section">
+          <h2>PARTES</h2>
+          <div class="row"><label><input id="toggleSkull" type="checkbox" checked/> Cráneo</label></div>
+          <div class="row"><label><input id="toggleGray" type="checkbox" checked/> Sustancia gris</label></div>
+          <div class="row"><label><input id="toggleWhite" type="checkbox" checked/> Sustancia blanca</label></div>
+          <div class="row"><label><input id="toggleCSF" type="checkbox" checked/> LCR</label></div>
+          <div class="row"><label>Opacidad cráneo</label> <input id="skullOpacity" type="range" min="0" max="1" step="0.01" value="0.28"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section">
+          <h2>ROI</h2>
+          <div class="row"><label>Radio (mm)</label> <input id="roiRadius" type="range" min="2" max="40" step="1" value="10"></div>
+          <div class="row"><label>ROI</label> <div class="small">haz click en el cerebro para posicionarlo</div></div>
+          <div class="pill mono" id="roiInfo">ROI: no definido</div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button id="btnSaveROI" class="btn-primary">Guardar ROI (.json)</button>
+            <button id="btnClearROI" class="btn-danger">Borrar ROI</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section">
+          <h2>CORTES</h2>
+          <div class="row"><label><input id="toggleClipping" type="checkbox"/> Activar</label></div>
+          <div class="row"><label>Corte Z</label> <input id="clipZ" type="range" min="-1.2" max="1.2" step="0.01" value="0.0"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section">
+          <h2>SIMULACIÓN</h2>
+          <div class="row"><label>Duración (meses)</label> <input id="simMonths" type="range" min="1" max="60" step="1" value="12"></div>
+          <div class="pill mono" id="simInfo">Simulación: detenida</div>
+          <div class="row" style="gap:8px;flex-wrap:wrap">
+            <button id="btnSimStart" class="btn-primary">Simular crecimiento</button>
+            <button id="btnSimStop" class="btn-danger">Detener</button>
+          </div>
+          <div class="divider"></div>
+          <div class="section">
+            <h2>AYUDA</h2>
+            <div class="log">
+              - click: asigna ROI<br>
+              - rueda: zoom<br>
+              - arrastrar: rotar<br>
+              - shift+arrastrar: mover<br>
+              Nota: este es un modelo demo (parámetros y unidades aproximadas).
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <section id="viewport">
+        <div id="renderer" aria-label="Render 3D"></div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module">
+    import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.163.0/build/three.module.js";
+    import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.163.0/examples/jsm/controls/OrbitControls.js";
+
+    // Escala demo: 1 unidad ~ 100 mm
+    const MM2UNIT = 1 / 100;
+
+    const rendererEl = document.getElementById('renderer');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1020);
+
+    const camera = new THREE.PerspectiveCamera(55, 1, 0.01, 100);
+    camera.position.set(0.8, 0.6, 1.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(rendererEl.clientWidth, rendererEl.clientHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.localClippingEnabled = true;
+    rendererEl.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    controls.minDistance = 0.5;
+    controls.maxDistance = 3;
+
+    // Luces
+    scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.75);
+    dir.position.set(1.2, 1.1, 0.9);
+    scene.add(dir);
+
+    // Modelo demo: capas concéntricas
+    const skullMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.3,
+      metalness: 0.0,
+      transmission: 0.9,
+      opacity: 0.28,
+      transparent: true,
+      thickness: 0.2,
+      side: THREE.DoubleSide,
+    });
+
+    const grayMat = new THREE.MeshStandardMaterial({
+      color: 0xc084fc,
+      roughness: 0.55,
+      metalness: 0.0,
+      transparent: false,
+      emissive: 0x000000,
+    });
+
+    const whiteMat = new THREE.MeshStandardMaterial({
+      color: 0xf9fafb,
+      roughness: 0.6,
+      metalness: 0.0,
+      transparent: false,
+    });
+
+    const csfMat = new THREE.MeshPhysicalMaterial({
+      color: 0x60a5fa,
+      roughness: 0.4,
+      metalness: 0.0,
+      transmission: 0.8,
+      opacity: 0.18,
+      transparent: true,
+      thickness: 0.2,
+      side: THREE.DoubleSide,
+    });
+
+    const geoSkull = new THREE.SphereGeometry(1.05, 96, 96);
+    const geoGray  = new THREE.SphereGeometry(1.00, 96, 96);
+    const geoWhite = new THREE.SphereGeometry(0.88, 96, 96);
+    const geoCSF   = new THREE.SphereGeometry(0.96, 96, 96);
+
+    const skull = new THREE.Mesh(geoSkull, skullMat);
+    const gray  = new THREE.Mesh(geoGray, grayMat);
+    const white = new THREE.Mesh(geoWhite, whiteMat);
+    const csf   = new THREE.Mesh(geoCSF, csfMat);
+
+    skull.name = 'Skull'; gray.name = 'Gray'; white.name = 'White'; csf.name = 'CSF';
+
+    scene.add(skull);
+    scene.add(gray);
+    scene.add(white);
+    scene.add(csf);
+
+    // Ayuda visual
+    const axes = new THREE.AxesHelper(0.25);
+    axes.position.set(-1.4, -1.1, 0);
+    scene.add(axes);
+
+    // Clipping plane (corte Z)
+    const clipPlane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+    const clippingPlanes = [clipPlane];
+    skull.material.clippingPlanes = clippingPlanes;
+    gray.material.clippingPlanes = clippingPlanes;
+    white.material.clippingPlanes = clippingPlanes;
+    csf.material.clippingPlanes = clippingPlanes;
+
+    // ROI + tumor
+    const roiMat = new THREE.MeshStandardMaterial({ color: 0xfb7185, emissive: 0x000000, roughness: 0.5 });
+    const tumorMat = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.6, transparent: true, opacity: 0.85 });
+
+    let roi;
+    let tumor;
+    let roiState = { defined: false, x_mm: 0, y_mm: 0, z_mm: 0, radius_mm: 10 };
+
+    // Simulación
+    let simActive = false;
+    let simStart = 0;
+    let simMonths = 12;
+
+    const roiInfo = document.getElementById('roiInfo');
+    const simInfo = document.getElementById('simInfo');
+
+    function setROI(x, y, z) {
+      const radius_mm = roiState.radius_mm;
+      // Crear/actualizar ROI (un esferita)
+      if (!roi) {
+        roi = new THREE.Mesh(new THREE.SphereGeometry(radius_mm * MM2UNIT, 32, 32), roiMat);
+        scene.add(roi);
+      } else {
+        roi.geometry.dispose();
+        roi.geometry = new THREE.SphereGeometry(radius_mm * MM2UNIT, 32, 32);
+      }
+      roi.position.set(x, y, z);
+
+      // Tumor (base) pegado al ROI para simular crecimiento
+      if (!tumor) {
+        tumor = new THREE.Mesh(new THREE.SphereGeometry(radius_mm * MM2UNIT, 32, 32), tumorMat);
+        scene.add(tumor);
+      } else {
+        tumor.geometry.dispose();
+        tumor.geometry = new THREE.SphereGeometry(radius_mm * MM2UNIT, 32, 32);
+      }
+      tumor.position.copy(roi.position);
+      tumor.scale.set(1, 1, 1);
+
+      roiState.defined = true;
+      roiState.x_mm = Math.round(x / MM2UNIT);
+      roiState.y_mm = Math.round(y / MM2UNIT);
+      roiState.z_mm = Math.round(z / MM2UNIT);
+
+      roiInfo.textContent = `ROI: (${roiState.x_mm}, ${roiState.y_mm}, ${roiState.z_mm}) mm · radio ${roiState.radius_mm} mm`;
+    }
+
+    function clearROI() {
+      if (roi) { scene.remove(roi); roi.geometry.dispose(); roi.material.dispose(); roi = null; }
+      if (tumor) { scene.remove(tumor); tumor.geometry.dispose(); tumor.material.dispose(); tumor = null; }
+      roiState.defined = false;
+      roiInfo.textContent = 'ROI: no definido';
+      stopSim();
+    }
+
+    function startSim() {
+      if (!roiState.defined) {
+        simInfo.textContent = 'Simulación: define primero el ROI con un click';
+        return;
+      }
+      simActive = true;
+      simStart = performance.now();
+      simInfo.textContent = `Simulación: activa (duración ${simMonths} meses)`;
+    }
+
+    function stopSim() {
+      simActive = false;
+      simInfo.textContent = 'Simulación: detenida';
+      if (tumor) tumor.scale.set(1, 1, 1);
+    }
+
+    function download(filename, data) {
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // Eventos UI
+    document.getElementById('toggleSkull').addEventListener('change', (e) => { skull.visible = e.target.checked; });
+    document.getElementById('toggleGray').addEventListener('change', (e) => { gray.visible = e.target.checked; });
+    document.getElementById('toggleWhite').addEventListener('change', (e) => { white.visible = e.target.checked; });
+    document.getElementById('toggleCSF').addEventListener('change', (e) => { csf.visible = e.target.checked; });
+
+    document.getElementById('skullOpacity').addEventListener('input', (e) => {
+      skull.material.opacity = parseFloat(e.target.value);
+    });
+
+    document.getElementById('roiRadius').addEventListener('input', (e) => {
+      roiState.radius_mm = parseFloat(e.target.value);
+      if (roiState.defined) {
+        setROI(roi.position.x, roi.position.y, roi.position.z);
+      } else {
+        roiInfo.textContent = `ROI: no definido (radio ${roiState.radius_mm} mm)`;
+      }
+    });
+
+    document.getElementById('btnSaveROI').addEventListener('click', () => {
+      if (!roiState.defined) {
+        roiInfo.textContent = 'ROI: debes definirlo antes de guardarlo';
+        return;
+      }
+      const out = {
+        roi: {
+          x_mm: roiState.x_mm,
+          y_mm: roiState.y_mm,
+          z_mm: roiState.z_mm,
+          radius_mm: roiState.radius_mm,
+        },
+        metadata: {
+          units: 'mm',
+          mm_to_unit: MM2UNIT,
+          created_at: new Date().toISOString(),
+          note: 'Menin2026 ROI demo export (JS).'
+        }
+      };
+      download(`roi_Menin2026_${Date.now()}.json`, JSON.stringify(out, null, 2));
+    });
+
+    document.getElementById('btnClearROI').addEventListener('click', clearROI);
+
+    document.getElementById('toggleClipping').addEventListener('change', (e) => {
+      renderer.localClippingEnabled = e.target.checked;
+    });
+    document.getElementById('clipZ').addEventListener('input', (e) => {
+      clipPlane.constant = parseFloat(e.target.value);
+    });
+
+    document.getElementById('simMonths').addEventListener('input', (e) => { simMonths = parseFloat(e.target.value); });
+    document.getElementById('btnSimStart').addEventListener('click', startSim);
+    document.getElementById('btnSimStop').addEventListener('click', stopSim);
+
+    // Selección ROI por raycast
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    function setPointer(ev) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((ev.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((ev.clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (ev) => {
+      // Evitar clicks cuando se está arrastrando controles
+      // Allow only left button
+      if (ev.button !== 0) return;
+      setPointer(ev);
+      raycaster.setFromCamera(pointer, camera);
+      // Intersectar con capas internas primero (gris->blanca)
+      const intersects = raycaster.intersectObjects([white, gray, csf, skull]);
+      if (intersects.length > 0) {
+        const p = intersects[0].point;
+        setROI(p.x, p.y, p.z);
+      }
+    });
+
+    function onResize() {
+      const w = rendererEl.clientWidth;
+      const h = rendererEl.clientHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+    }
+    window.addEventListener('resize', onResize);
+    onResize();
+
+    // Animación
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+
+      if (simActive && tumor) {
+        const elapsedMs = performance.now() - simStart;
+        const elapsedMonths = (elapsedMs / 1000) * 2; // 2 meses por segundo (aprox)
+        const t = Math.min(elapsedMonths / simMonths, 1);
+        // Crecimiento suave
+        const scale = 1 + 4 * t + 1.5 * t * t; // base demo
+        tumor.scale.set(scale, scale, scale);
+        simInfo.textContent = `Simulación: activa (${elapsedMonths.toFixed(1)} / ${simMonths} meses)`;
+
+        // Auto-stop
+        if (t >= 1) {
+          simInfo.textContent = 'Simulación: completada (demo)';
+          simActive = false;
+        }
+      }
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    // Estado inicial
+    roiInfo.textContent = `ROI: no definido (radio ${roiState.radius_mm} mm)`;
+  </script>
+</body>
+</html>
