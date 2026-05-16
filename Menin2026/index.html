@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Menin2026 | Cerebro 3D, ROI y Simulación de Meningioma</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Menin2026</h1>
+      <p>Visor 3D educativo inspirado en BraTS_Est_2025v208.m y SimuMenCollin_Dfinitas_cT_E_ver0202_O3.m</p>
+    </div>
+    <div class="badge">Autor: Jorge Roblero Wong</div>
+  </header>
+
+  <main class="layout">
+    <aside class="panel">
+      <section>
+        <h2>1. Cerebro virtual</h2>
+        <button id="btnGenerate">Generar cerebro demo</button>
+        <button id="btnResetView">Centrar vista 360°</button>
+        <label class="fileLabel">Cargar JSON propio
+          <input id="jsonFile" type="file" accept="application/json" />
+        </label>
+        <p class="hint">El demo crea un volumen elipsoidal tipo BrainWeb: cráneo, sustancia gris, blanca, LCR y ROI.</p>
+      </section>
+
+      <section>
+        <h2>2. Selección ROI / tumor</h2>
+        <p>Haz clic sobre el cerebro para colocar el centro inicial del tumor.</p>
+        <div class="grid2">
+          <label>X <input id="roiX" type="range" min="-35" max="35" value="8" /></label>
+          <label>Y <input id="roiY" type="range" min="-45" max="45" value="10" /></label>
+          <label>Z <input id="roiZ" type="range" min="-30" max="30" value="10" /></label>
+          <label>Radio <input id="tumorRadius" type="range" min="2" max="16" value="5" /></label>
+        </div>
+        <button id="btnPlaceTumor">Aplicar ROI</button>
+      </section>
+
+      <section>
+        <h2>3. Cortes y navegación interior</h2>
+        <label>Corte X <input id="clipX" type="range" min="-45" max="45" value="45" /></label>
+        <label>Corte Y <input id="clipY" type="range" min="-55" max="55" value="55" /></label>
+        <label>Corte Z <input id="clipZ" type="range" min="-40" max="40" value="40" /></label>
+        <button id="btnToggleInside">Entrar / salir del cerebro</button>
+      </section>
+
+      <section>
+        <h2>4. Modelo de crecimiento</h2>
+        <div class="grid2">
+          <label>tMax meses <input id="tMax" type="number" value="48" min="1" max="120" /></label>
+          <label>dt meses <input id="dt" type="number" value="0.2" min="0.1" step="0.1" /></label>
+          <label>M0 <input id="m0" type="number" value="0.20" min="0" step="0.01" /></label>
+          <label>alpha <input id="alpha" type="number" value="0.002" min="0" step="0.001" /></label>
+        </div>
+        <button id="btnSimulate">Simular crecimiento</button>
+        <button id="btnExport">Exportar JSON</button>
+      </section>
+    </aside>
+
+    <section class="viewerCard">
+      <div id="viewer"></div>
+      <div class="legend">
+        <span><b class="c skull"></b>Cráneo</span>
+        <span><b class="c gm"></b>Sustancia gris</span>
+        <span><b class="c wm"></b>Sustancia blanca</span>
+        <span><b class="c csf"></b>LCR</span>
+        <span><b class="c tumor"></b>Tumor / ROI</span>
+      </div>
+      <div id="status">Listo. Presiona “Generar cerebro demo”.</div>
+    </section>
+  </main>
+
+  <script type="importmap">
+    {"imports":{"three":"https://unpkg.com/three@0.164.1/build/three.module.js","three/addons/":"https://unpkg.com/three@0.164.1/examples/jsm/"}}
+  </script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
